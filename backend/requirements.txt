@@ -1,0 +1,7 @@
+Flask
+flask-cors
+yfinance
+numpy
+pandas
+matplotlib
+python-dotenv
