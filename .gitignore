@@ -13,4 +13,5 @@ frontend/.vite/
 # Logs & misc
 .Rhistory
 .env
+.DS_Store
 
