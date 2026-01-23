@@ -186,6 +186,94 @@ def _plot_weights_pie(best_weights, tickers, *, verbose: bool=False):
     _dbg(verbose, "STEP 4.2 DONE")
     return base64.b64encode(buf.getvalue()).decode("utf-8")
 
+def _compute_drawdown_series(r: pd.Series) -> pd.Series:
+    """Drawdown series from periodic returns."""
+    wealth = (1 + r.fillna(0)).cumprod()
+    peak = wealth.cummax()
+    dd = wealth / peak - 1.0
+    return dd
+
+def compute_drawdown_stats(
+    portfolio_returns: pd.Series,
+    risk_free_annual: float = 0.02,
+    periods_per_year: int = 12,
+) -> dict:
+    """
+    Returns:
+      max_drawdown (negative number)
+      worst_month_return
+      worst_month_date
+      worst_year_return
+      worst_year
+      downside_deviation_annual
+      sortino
+    Assumes returns are periodic (monthly if periods_per_year=12).
+    """
+    r = portfolio_returns.dropna()
+    if r.empty:
+        return {
+            "max_drawdown": None,
+            "worst_month_return": None,
+            "worst_month_date": None,
+            "worst_year_return": None,
+            "worst_year": None,
+            "downside_deviation_annual": None,
+            "sortino": None,
+        }
+
+    # Max drawdown
+    dd = _compute_drawdown_series(r)
+    max_dd = float(dd.min())  # negative
+
+    # Worst month
+    worst_month_return = float(r.min())
+    worst_month_date = r.idxmin()
+    worst_month_date_str = worst_month_date.strftime("%Y-%m-%d") if hasattr(worst_month_date, "strftime") else str(worst_month_date)
+
+    # Worst year (compound within each year)
+    if isinstance(r.index, pd.DatetimeIndex):
+        yearly = (1 + r).groupby(r.index.year).prod() - 1
+        worst_year_return = float(yearly.min())
+        worst_year = int(yearly.idxmin())
+    else:
+        worst_year_return = None
+        worst_year = None
+
+    # Annualised return (geometric)
+    wealth = (1 + r).cumprod()
+    years = len(r) / periods_per_year
+    if years > 0:
+        annual_return = float(wealth.iloc[-1] ** (1 / years) - 1)
+    else:
+        annual_return = float((1 + r.mean()) ** periods_per_year - 1)
+
+    # Downside deviation (annualised)
+    downside = r[r < 0]
+    if len(downside) > 1:
+        downside_dev_period = float(downside.std(ddof=0))
+        downside_dev_annual = downside_dev_period * np.sqrt(periods_per_year)
+    else:
+        downside_dev_annual = 0.0
+
+    # Sortino ratio
+    if downside_dev_annual > 0:
+        sortino = (annual_return - float(risk_free_annual)) / downside_dev_annual
+        sortino = float(sortino)
+    else:
+        sortino = None
+
+    return {
+        "max_drawdown": max_dd,
+        "worst_month_return": worst_month_return,
+        "worst_month_date": worst_month_date_str,
+        "worst_year_return": worst_year_return,
+        "worst_year": worst_year,
+        "downside_deviation_annual": float(downside_dev_annual),
+        "sortino": sortino,
+        "annual_return_geom": annual_return,
+    }
+
+
 # --------------- Public API ---------------
 def optimize_portfolio(
     tickers: Iterable[str],
@@ -237,7 +325,18 @@ def optimize_portfolio(
                       f"(return={results['returns'][max_idx]:.4f}, "
                       f"vol={results['volatility'][max_idx]:.4f}, "
                       f"sharpe={results['sharpe'][max_idx]:.4f})")
-
+        
+        # 3.2) Drawdowns & downside risk (based on monthly portfolio returns)
+        # returns is monthly returns DataFrame (index=dates, cols=tickers)
+        portfolio_returns = returns.dot(best_weights)  # monthly portfolio returns series
+        drawdown_stats = compute_drawdown_stats(
+            portfolio_returns=portfolio_returns,
+            risk_free_annual=risk_free,
+            periods_per_year=12,
+        )
+        _dbg(verbose, f"STEP 3.2: Max drawdown={drawdown_stats.get('max_drawdown')}, "
+            f"Sortino={drawdown_stats.get('sortino')}")
+        
         # 4) Plots
         plots = {
             "efficient_frontier": _plot_efficient_frontier(results, verbose=verbose),
@@ -252,10 +351,10 @@ def optimize_portfolio(
                 "expected_return": float(results["returns"][max_idx]),
                 "volatility": float(results["volatility"][max_idx]),
                 "sharpe": float(results["sharpe"][max_idx]),
-                "weights": {symbols[i]: float(best_weights[i]) for i in range(len(symbols))}
+                "weights": {symbols[i]: float(best_weights[i]) for i in range(len(symbols))},
+                "downside": drawdown_stats,  # ✅ ADD THIS
             }
         }
-
         _dbg(verbose, "ALL STEPS DONE ✅")
         return results_dict, plots
 
@@ -273,3 +372,5 @@ if __name__ == "__main__":
     print("Optimal Portfolio:")
     print(res["optimal_portfolio"])
     print("Plots generated:", list(plots.keys()))
+
+
