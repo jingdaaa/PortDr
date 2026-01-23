@@ -1,7 +1,7 @@
 # PortDr
-**Portfolio Analytics · Optimisation · Visualisation**
+**Portfolio Analytics · Optimisation · Visualisation**  
 
-- PortDr is a full-stack portfolio analytics platform designed to help users explore, simulate, and optimise investment portfolios using transparent, defensible quantitative methods. It combines a modern React frontend with a Python analytics backend to deliver clear insights into risk–return trade-offs.
+PortDr is a full-stack portfolio analytics platform designed to help users explore, simulate, and optimise investment portfolios using transparent, defensible quantitative methods. It combines a modern React frontend with a Python analytics backend to deliver clear insights into risk–return trade-offs
 
 ## Key Features
 ### Portfolio Analysis
@@ -53,9 +53,9 @@
 - Scaling into more complex models for better invesment recommendations
 
 ## Disclaimer
-**PortDr is provided for educational and research purpose only**
-- It should not be used as the sole basis for investment decisions
+**PortDr is provided for educational and research purpose only**  
+It should not be used as the sole basis for investment decisions
 
 **Author**
-- Jingda Teh
-- Developer & Creator of PortDr
+Jingda Teh  
+Developer & Creator of PortDr
